@@ -25,7 +25,7 @@ class GlareDetector:
     exceeds a configurable threshold.
     """
 
-    def __init__(self, brightness_cutoff: int = 240, area_threshold: float = 0.05):
+    def __init__(self, brightness_cutoff: int = 250, area_threshold: float = 0.08):
         self.brightness_cutoff = brightness_cutoff
         self.area_threshold = area_threshold
 
