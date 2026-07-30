@@ -143,6 +143,18 @@ uvicorn app.main:app --reload --port 8001
 
 Interactive docs (Swagger UI) at `http://127.0.0.1:8001/docs`.
 
+
+## Docker
+
+Build and run:
+
+```bash
+docker compose up --build
+```
+
+API available at `http://127.0.0.1:8001` (host port 8001 maps to
+container port 8000, to avoid clashing with other local services).
+
 ## Project layout
 
 ```text
