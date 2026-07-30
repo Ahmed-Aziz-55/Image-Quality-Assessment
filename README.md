@@ -112,6 +112,37 @@ Run tests:
 pytest app/tests/ -v
 ```
 
+
+## API (FastAPI)
+
+`app/main.py` exposes `QualityAssessor` over HTTP.
+
+Run locally:
+
+```bash
+uvicorn app.main:app --reload --port 8001
+```
+
+### Endpoints
+
+- `GET /health` — returns `{"status": "ok"}`.
+- `POST /assess` — upload an image, get a quality verdict back.
+
+  Request: multipart form upload, field name `file`.
+
+  Response:
+  ```json
+  {
+    "filename": "photo.jpg",
+    "passed": true,
+    "blur": {"flagged": false, "score": 4963.9},
+    "darkness": {"flagged": false, "score": 147.6},
+    "glare": {"flagged": false, "score": 0.0409}
+  }
+  ```
+
+Interactive docs (Swagger UI) at `http://127.0.0.1:8001/docs`.
+
 ## Project layout
 
 ```text
