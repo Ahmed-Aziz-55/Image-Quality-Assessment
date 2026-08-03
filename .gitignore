@@ -7,3 +7,5 @@ logs/
 .DS_Store
 data/
 datasets/
+models/
+dataset/

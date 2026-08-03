@@ -132,3 +132,57 @@ response is sent).
 `QualityAssessor` is instantiated once at import time (not per-request) —
 it holds no per-request state, so a single shared instance is safe and
 avoids re-creating three detector objects on every call.
+
+---
+
+## 7. Deep learning comparison: CNN vs classical heuristics on KonIQ-10k
+
+To validate the classical CV approach (Decision 1), a small CNN
+(`QualityCNN`, 548K parameters, 3 conv blocks) was trained on the
+KonIQ-10k dataset (10,073 real-world images with human-rated MOS scores,
+official 70/10/20 train/validation/test split) to predict overall
+perceived quality (MOS, normalized 0-1) as a regression task.
+
+Since the classical detectors only produce boolean flags per defect type
+individually, a continuous "combined quality score" was built for fair
+comparison: each detector's raw sub-score was normalized to 0-1 (higher =
+better quality) and equal-weight averaged across blur, darkness, and
+glare.
+
+**Training:** 5 epochs, batch size 32, Adam optimizer, MSE loss, images
+resized to 64x64 (small on purpose — CPU training). ~19s/epoch, ~93s
+total on the full 7,058-image training set.
+
+**Evaluation (2,015 held-out test images), Pearson correlation against
+human MOS (the dataset's own suggested benchmarking metric):**
+
+| Approach | Pearson r | p-value |
+|---|---|---|
+| CNN (trained) | 0.6128 | 4.87e-208 |
+| Classical heuristics (combined) | 0.5992 | 1.09e-196 |
+
+**Interpretation:** both approaches show a moderate-to-strong, highly
+statistically significant correlation with human-perceived quality. The
+CNN outperforms the classical heuristics, but only marginally (Δr ≈
+0.014) despite the CNN having the benefit of supervised training on
+10,000+ human-labeled examples, while the classical heuristics use zero
+training data. This is a meaningful validation of the classical approach
+chosen in Decision 1: it captures genuine, non-trivial signal correlated
+with human quality perception, not noise — a correlation near 0 would
+indicate the heuristics were arbitrary.
+
+**Trade-off note:** the CNN's advantage is small here partly because it
+is intentionally small and undertrained (5 epochs, 64x64 input) relative
+to what state-of-the-art IQA models use (typically pretrained backbones,
+higher resolution, many more epochs). A larger, longer-trained CNN would
+likely widen this gap. This experiment establishes a baseline comparison
+under CPU-only, time-constrained conditions — not a ceiling on what deep
+learning could achieve on this task.
+
+**Reasoning for keeping the classical approach as the primary/default
+detectors:** given the marginal accuracy difference, the classical
+heuristics remain the better choice for production use in this project —
+they require no training data, no GPU, run in microseconds per image (vs.
+model inference), and every decision is a documented formula rather than
+a black box. The CNN comparison here served its purpose as a validation
+exercise, not as a replacement.
