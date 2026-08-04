@@ -212,3 +212,36 @@ scenes with more typical brightness distribution. A future improvement
 could combine this with a clipping-percentage check (as used in this
 diagnostic) for stronger confidence, similar to how GlareDetector uses a
 saturated-pixel-ratio rather than a simple mean.
+
+---
+
+## 9. Motion detector: two design corrections found via testing
+
+`MotionDetector` uses Sobel gradient anisotropy (ratio of horizontal vs.
+vertical gradient energy) to distinguish directional (motion) blur from
+isotropic (out-of-focus) blur. Two issues were found and fixed during
+initial testing:
+
+**Issue 1 — total-energy check was wrong.** The first version checked
+whether `energy_x + energy_y` was below a threshold to confirm genuine
+blur. Testing against a synthetic motion-blurred image (horizontal
+motion kernel applied to a checkerboard pattern) showed this failed:
+motion blur in one direction leaves the perpendicular direction's energy
+largely intact, so the *sum* stayed high even though the blurred
+direction was genuinely weak. Fixed by checking only the *weaker*
+direction's own energy, not the sum of both.
+
+**Issue 2 — the weak-direction threshold was an unvalidated guess.** The
+initial value (5.0) was picked without reference to real data. Testing
+against a genuinely isotropically-blurred image (`GaussianBlur`) showed
+its actual per-direction energy was ~1625 — meaning the guessed
+threshold of 5.0 was off by roughly three orders of magnitude and would
+have flagged nothing as blurred. Recalibrated to 2000.0 using the
+isotropically-blurred image's measured energy as a reference point.
+
+**Reasoning:** both issues are the same underlying lesson repeated
+across this project (see Decisions 3, 8) — thresholds and formulas must
+be validated against actual measured values on real or realistic test
+data, not assumed. Sobel gradient energy magnitudes are not intuitive to
+guess correctly without first observing what "genuinely blurred" looks
+like numerically.
