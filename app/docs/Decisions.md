@@ -186,3 +186,29 @@ they require no training data, no GPU, run in microseconds per image (vs.
 model inference), and every decision is a documented formula rather than
 a black box. The CNN comparison here served its purpose as a validation
 exercise, not as a replacement.
+
+---
+
+## 8. Overexposure threshold tuned after false positive on naturally-bright scene
+
+Initial `OverexposureDetector` used `threshold=200.0` (mean grayscale
+brightness). Tested against 50 real images from the existing test set, 1
+was flagged: a snowy ground scene with mean brightness 207.3.
+
+Diagnostic check (pixel clipping analysis): only 0.03% of pixels were
+exactly 255 (fully clipped) and 0.20% were near-white (>=250) — showing
+this was NOT genuine sensor overexposure/clipping, but a naturally
+flat, bright scene (snow under bright light has little inherent texture
+even in a correctly-exposed photo). This is analogous to the glare
+false-positive found earlier (Decision 3): mean/count-based brightness
+metrics alone cannot distinguish "the scene is naturally bright" from
+"the camera actually overexposed this shot."
+
+**Fix:** raised threshold to 220.0. Re-tested on the same 50 images: 0
+flagged (0 false positives). This detector remains a mean-brightness
+heuristic — it is expected to be less reliable on scenes that are
+naturally very bright (snow, bright sand, overcast white sky) versus
+scenes with more typical brightness distribution. A future improvement
+could combine this with a clipping-percentage check (as used in this
+diagnostic) for stronger confidence, similar to how GlareDetector uses a
+saturated-pixel-ratio rather than a simple mean.
