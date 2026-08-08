@@ -22,7 +22,7 @@ class ResolutionDetector:
     height) falls below a configurable threshold.
     """
 
-    def __init__(self, min_pixels: int = 480 * 480):
+    def __init__(self, min_pixels: int = 256 * 256):
         self.min_pixels = min_pixels
 
     def compute_score(self, image: np.ndarray) -> int:

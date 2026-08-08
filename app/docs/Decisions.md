@@ -245,3 +245,67 @@ be validated against actual measured values on real or realistic test
 data, not assumed. Sobel gradient energy magnitudes are not intuitive to
 guess correctly without first observing what "genuinely blurred" looks
 like numerically.
+
+---
+
+## 10. Occlusion detector: grid granularity affected detection accuracy
+
+`OcclusionDetector` divides the image into a grid and flags occlusion if
+enough blocks are both low-variance and low-edge-density. Initial testing
+(synthetic textured image with a 25%-area uniform block inserted) showed
+`grid_size=8` under-detected: measured score was 0.141 (14.1%) against a
+known 25% occluded area.
+
+**Root cause:** with coarse 8x8 blocks (~37x37 px), many blocks straddled
+the boundary between the flat block and the textured background — these
+mixed blocks were neither purely flat nor purely textured, so they failed
+both the variance and edge-density thresholds and were not counted,
+undercounting the true occluded area.
+
+**Fix:** increased `grid_size` to 12 (finer blocks), reducing boundary-
+straddling. Re-tested: score improved to 0.222 (22.2%), much closer to
+the true 25%. Some undercount remains inherent to any grid-based approach
+(boundary blocks will always be somewhat mixed) — this is a known
+limitation of the method, not fully eliminated.
+
+**Standing limitation (unchanged from initial design):** this heuristic
+has no general-purpose labeled dataset for validation (Decision — CMU_KO8
+was considered and rejected as too domain-mismatched, kitchen objects
+only). It should be treated as a low-confidence signal.
+
+---
+
+## 11. Resolution feature was dead/constant — fixed via training-specific downscale-without-upscale
+
+`FeatureExtractor`'s "resolution" feature was found to be constant
+(0.58) across every tested image, regardless of whether a resolution
+defect was injected. Two compounding causes:
+
+1. `degradation_engine.apply_low_resolution()` downscales then upscales
+   back to original dimensions (correct behavior for the pilot script's
+   side-by-side visual comparisons), but `ResolutionDetector` only
+   measures `image.shape` -- since dimensions are always restored, the
+   detector could never detect this specific synthetic degradation.
+2. The training image source (KonIQ-10k, `data/raw/512x384`, natively
+   512x384 = 196,608px) was already below `ResolutionDetector`'s original
+   threshold (480x480 = 230,400px), so every image sat at a fixed
+   "already bad" baseline regardless of any degradation.
+
+**Fix:**
+- `SyntheticAugmentationEngine` now special-cases the resolution defect:
+  when chosen, it calls a local `_apply_true_downscale()` that returns
+  the image at its genuinely smaller size (no upscale-back), instead of
+  `degradation_engine.apply_low_resolution()`. `degradation_engine.py`
+  itself is unchanged, since the pilot script still needs the
+  shape-preserving version for visual comparison grids.
+- `ResolutionDetector`'s `min_pixels` threshold lowered from 480x480
+  (230,400px) to 256x256 (65,536px), matched to this dataset's native
+  resolution so clean (undegraded) images correctly register as
+  acceptable rather than universally "bad."
+
+**Verification:** re-tested on 20 real images. Before the fix: 1 unique
+resolution score across all 20 (0.58, constant). After: 5 unique scores,
+correctly ordered by injected severity (baseline clean ~0.467, mild
+injection ~0.483, medium ~0.638, high ~1.000) -- confirming the feature
+now carries real, directionally-correct information for the Suitability
+Model to learn from.
