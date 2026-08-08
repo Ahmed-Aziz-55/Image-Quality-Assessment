@@ -83,7 +83,18 @@ class FramingDetector:
 
         total_edge_pixels = np.count_nonzero(edges)
         if total_edge_pixels == 0 or cell_h == 0 or cell_w == 0:
-            return 0.0, 0.0, False
+            # No detectable edges (e.g. a heavily blurred/darkened image
+            # has destroyed edge structure) -- this is NOT evidence of
+            # good framing. Returning 0.0 here previously caused a
+            # confound: severely degraded (Not Suitable) images had no
+            # edges, scored as "good framing" (0.0 -> normalizes to
+            # best-case), producing a spurious positive correlation
+            # between poor framing score and the Suitable label (see
+            # Decisions.md). Returning the detector's own threshold
+            # instead makes FeatureExtractor normalize this to a NEUTRAL
+            # 0.5 -- "we genuinely can't judge framing here" rather than
+            # "framing is good."
+            return 0.0, self.border_concentration_threshold, False
 
         center_edge_pixels = 0
         border_edge_pixels = 0

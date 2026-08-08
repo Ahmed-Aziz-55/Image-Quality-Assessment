@@ -35,4 +35,9 @@ def test_blank_image_not_flagged():
     detector = FramingDetector()
     has_poor_framing, score = detector.has_poor_framing(img)
     assert has_poor_framing is False
-    assert score == 0.0
+    # Score is now the detector'''s own threshold (not 0.0) when no edges
+    # are detected -- this makes FeatureExtractor normalize it to a
+    # NEUTRAL 0.5, rather than the old behavior of returning 0.0 (which
+    # incorrectly normalized to "good framing"). See Decisions.md for
+    # the confound this fixed in the Suitability Model.
+    assert score == detector.border_concentration_threshold

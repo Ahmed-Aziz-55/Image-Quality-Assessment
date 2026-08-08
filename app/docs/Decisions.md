@@ -309,3 +309,59 @@ correctly ordered by injected severity (baseline clean ~0.467, mild
 injection ~0.483, medium ~0.638, high ~1.000) -- confirming the feature
 now carries real, directionally-correct information for the Suitability
 Model to learn from.
+
+---
+
+## 12. FramingDetector confound found in Suitability Model coefficients, fixed
+
+After training the Suitability Model (Logistic Regression), the
+`framing` feature showed a POSITIVE coefficient (+0.72) — meaning a
+worse (higher) framing score increased the predicted probability of
+"Suitable," backwards from every other feature (all correctly negative:
+worse score -> lower Suitable probability).
+
+**Root cause:** `FramingDetector._grid_edge_fractions()` returned
+`border_concentration=0.0` whenever an image had no detectable Canny
+edges at all. Severely degraded images (e.g. High-severity injected blur
+or darkness) destroy edge structure — so the MOST "Not Suitable" images
+in the training set were, by coincidence, scoring 0.0 on framing, which
+`FeatureExtractor` normalizes to 0.0 ("best case," i.e. "well framed").
+This created a spurious correlation: heavily-degraded (Not Suitable)
+images artifactually looked "well framed," while genuinely clean
+(Suitable) images retained their normal edge structure and typical
+framing baseline (observed ~0.879 normalized in earlier ad-hoc testing
+this session). The model learned this backwards artifact rather than any
+real framing signal.
+
+**Fix:** the no-edges case now returns `border_concentration =
+self.border_concentration_threshold` instead of `0.0`. Since
+`FeatureExtractor` maps a detector's own threshold to exactly 0.5
+(neutral midpoint), an image with no detectable edges now normalizes to
+"we genuinely can't judge framing here," not "framing is good." Unit
+test `test_blank_image_not_flagged` updated to assert this new,
+intentional behavior (was previously asserting the old buggy value).
+
+**Consequence:** the training dataset and Suitability Model were
+regenerated/retrained after this fix (see updated metrics below this
+entry, added after retraining).
+
+### Post-fix retraining results
+
+| Metric | Before fix | After fix |
+|---|---|---|
+| LogReg Accuracy | 0.7320 | 0.7140 |
+| LogReg ROC-AUC | 0.7963 | 0.7865 |
+| RF Accuracy | 0.7738 | 0.7712 |
+| RF ROC-AUC | 0.8514 | 0.8505 |
+
+**Framing coefficient flipped from +0.7203 (wrong direction) to -0.6881
+(correct direction: worse framing -> lower Suitable probability)**,
+confirming the confound hypothesis and fix.
+
+The slight overall metric decrease after the fix is expected and
+methodologically GOOD, not bad: Logistic Regression's pre-fix score was
+partly inflated by exploiting the spurious no-edges-means-good-framing
+artifact (which happened to correlate with genuinely severe defects like
+High-severity blur/darkness). With that artifact removed, the model's
+performance now more honestly reflects real signal from the 8 features,
+rather than a partially-spurious shortcut.
